@@ -1,4 +1,3 @@
-
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -11,356 +10,133 @@ db_file = "screen_time_siswa.db"
 conn = sqlite3.connect(db_file)
 
 print("=" * 50)
-print("       ANALISIS SCREEN TIME SISWA")
+print("VISUALISASI DATABASE SCREEN TIME SISWA")
 print("=" * 50)
 
-
 # =====================================================
-# PEMERIKSAAN DATA
+# GRAFIK 1: TOP 10 SISWA (BAR CHART)
 # =====================================================
 
 query = """
-SELECT *
+SELECT student_id,
+       ROUND(AVG(total_screen_time_hours), 2) AS rata_screen_time
 FROM screen_time_siswa
+GROUP BY student_id
+ORDER BY rata_screen_time DESC, student_id
+LIMIT 10
 """
+top_siswa = pd.read_sql(query, conn)
+print("\nTOP 10 SISWA")
+print(top_siswa)
 
-df = pd.read_sql(query, conn)
-
-print("\nPEMERIKSAAN DATA")
-print("-" * 50)
-
-print("Jumlah data:", len(df))
-print("Jumlah siswa:", df["student_id"].nunique())
-print("Data kosong:", df.isnull().sum().sum())
-
-if len(df) < 1000:
-    conn.close()
-    raise SystemExit("Data kurang dari 1.000 baris!")
-
-
-# =====================================================
-# RINGKASAN DATA
-# =====================================================
-
-print("\nRINGKASAN DATA")
-print("-" * 50)
-
-print("Rata-rata Screen Time:",
-      round(df["total_screen_time_hours"].mean(), 2),
-      "jam/hari")
-
-print("Screen Time Terendah:",
-      df["total_screen_time_hours"].min(), "jam")
-
-print("Screen Time Tertinggi:",
-      df["total_screen_time_hours"].max(), "jam")
-
-
-# =====================================================
-# 1. TOP 10 SISWA SCREEN TIME TERTINGGI
-# =====================================================
-
-top10 = df.groupby("student_id").agg({
-    "total_screen_time_hours": "mean"
-})
-
-top10 = top10.sort_values(
-    by="total_screen_time_hours",
-    ascending=False
-).head(10).reset_index()
-
-print("\nTOP 10 SISWA SCREEN TIME TERTINGGI")
-print("-" * 50)
-print(top10.round(2))
-
-
-# =====================================================
-# VISUALISASI 1: TOP 10 SISWA
-# =====================================================
-
-plt.figure(figsize=(12, 6))
-
-plt.bar(
-    top10["student_id"].astype(str),
-    top10["total_screen_time_hours"],
-    color="skyblue"
-)
-
-plt.title(
-    "Top 10 Siswa dengan Screen Time Tertinggi",
-    fontsize=14
-)
-
-plt.xlabel("ID Siswa")
-plt.ylabel("Rata-rata Screen Time (jam/hari)")
-
+plt.figure(figsize=(10, 5))
+plt.bar(top_siswa["student_id"], top_siswa["rata_screen_time"], color="skyblue")
+plt.title("Top 10 Siswa Screen Time Tertinggi")
+plt.xlabel("Student ID")
+plt.ylabel("Rata-rata Screen Time (Jam/Hari)")
 plt.xticks(rotation=45)
-plt.grid(axis="y", linestyle="--", alpha=0.7)
-
-for i, nilai in enumerate(top10["total_screen_time_hours"]):
-    plt.text(
-        i,
-        nilai,
-        f"{nilai:.2f}",
-        ha="center",
-        va="bottom",
-        fontsize=8
-    )
-
 plt.tight_layout()
 plt.show()
 
-
 # =====================================================
-# 2. KORELASI SCREEN TIME DENGAN DAMPAK
-# =====================================================
-
-kolom_dampak = [
-    "gpa_academic_score",
-    "assignment_completion_rate",
-    "sleep_duration_hours",
-    "sleep_quality_score",
-    "eye_fatigue_level"
-]
-
-korelasi = df[kolom_dampak].corrwith(
-    df["total_screen_time_hours"]
-).reset_index()
-
-korelasi.columns = [
-    "Variabel",
-    "Nilai Korelasi"
-]
-
-print("\nKORELASI SCREEN TIME DENGAN DAMPAK")
-print("-" * 50)
-print(korelasi.round(2))
-
-
-# =====================================================
-# VISUALISASI 2: KORELASI
+# GRAFIK 2: KELELAHAN MATA (PIE CHART)
 # =====================================================
 
-plt.figure(figsize=(10, 6))
+query = """
+SELECT eye_fatigue_level AS tingkat_kelelahan,
+       COUNT(*) AS jumlah
+FROM screen_time_siswa
+GROUP BY eye_fatigue_level
+ORDER BY eye_fatigue_level
+"""
+kelelahan_df = pd.read_sql(query, conn)
+print("\nDISTRIBUSI KELELAHAN MATA")
+print(kelelahan_df)
 
-plt.barh(
-    korelasi["Variabel"],
-    korelasi["Nilai Korelasi"],
-    color="cornflowerblue"
-)
+plt.figure(figsize=(8, 5))
+plt.pie(kelelahan_df["jumlah"],
+        labels=kelelahan_df["tingkat_kelelahan"],
+        autopct="%1.1f%%")
+plt.title("Distribusi Tingkat Kelelahan Mata (1-5)")
+plt.show()
 
-plt.title(
-    "Korelasi Screen Time dengan Dampak Akademik dan Kesehatan",
-    fontsize=13
-)
+# =====================================================
+# GRAFIK 3: TREN MINGGUAN (LINE CHART)
+# =====================================================
 
-plt.xlabel("Nilai Korelasi")
-plt.ylabel("Variabel")
+query = """
+SELECT strftime('%Y-%W', log_date) AS minggu,
+       ROUND(AVG(total_screen_time_hours), 2) AS rata_screen_time
+FROM screen_time_siswa
+GROUP BY minggu
+ORDER BY minggu
+"""
+tren_mingguan = pd.read_sql(query, conn)
+print("\nTREN MINGGUAN")
+print(tren_mingguan)
 
-plt.axvline(
-    x=0,
-    color="black",
-    linewidth=0.8
-)
-
-plt.grid(axis="x", linestyle="--", alpha=0.7)
-
+plt.figure(figsize=(10, 5))
+plt.plot(tren_mingguan["minggu"], tren_mingguan["rata_screen_time"], marker="o")
+plt.title("Tren Screen Time Mingguan")
+plt.xlabel("Minggu")
+plt.ylabel("Rata-rata Screen Time (Jam/Hari)")
+plt.xticks(rotation=45)
+plt.grid(True)
 plt.tight_layout()
 plt.show()
 
-
 # =====================================================
-# 3. DAMPAK BERDASARKAN KATEGORI SCREEN TIME
-# =====================================================
-
-df["kategori"] = pd.cut(
-    df["total_screen_time_hours"],
-    bins=[float("-inf"), 4, 6, 8, float("inf")],
-    labels=["< 4 jam", "4 - <6 jam", "6 - <8 jam", ">= 8 jam"]
-)
-
-kategori = df.groupby("kategori", observed=False).agg({
-    "student_id": "count",
-    "gpa_academic_score": "mean",
-    "sleep_duration_hours": "mean",
-    "eye_fatigue_level": "mean"
-}).round(2)
-
-print("\nDAMPAK BERDASARKAN KATEGORI SCREEN TIME")
-print("-" * 50)
-print(kategori)
-
-
-# =====================================================
-# VISUALISASI 3: KATEGORI SCREEN TIME
+# GRAFIK 4: WEEKDAY VS WEEKEND (GROUPED BAR CHART)
 # =====================================================
 
-plt.figure(figsize=(10, 6))
+query = """
+SELECT day_type,
+       ROUND(AVG(screen_time_social_media_hours), 2) AS media_sosial,
+       ROUND(AVG(screen_time_gaming_hours), 2) AS gaming
+FROM screen_time_siswa
+GROUP BY day_type
+ORDER BY day_type
+"""
+weekday_weekend = pd.read_sql(query, conn)
+print("\nWEEKDAY VS WEEKEND")
+print(weekday_weekend)
 
-plt.bar(
-    kategori.index.astype(str),
-    kategori["gpa_academic_score"],
-    color="lightgreen"
-)
-
-plt.title(
-    "Rata-rata Nilai Akademik Berdasarkan Kategori Screen Time",
-    fontsize=13
-)
-
-plt.xlabel("Kategori Screen Time")
-plt.ylabel("Rata-rata GPA")
-
-plt.grid(axis="y", linestyle="--", alpha=0.7)
-
-plt.tight_layout()
-plt.show()
-
-
-# =====================================================
-# 4. PERBANDINGAN WEEKDAY DAN WEEKEND
-# =====================================================
-
-hari = df.groupby("day_type").agg({
-    "total_screen_time_hours": "mean",
-    "screen_time_social_media_hours": "mean",
-    "screen_time_gaming_hours": "mean",
-    "sleep_duration_hours": "mean"
-})
-
-hari = hari.reindex(["Weekday", "Weekend"]).round(2)
-
-print("\nPERBANDINGAN WEEKDAY DAN WEEKEND")
-print("-" * 50)
-print(hari)
-
-
-# =====================================================
-# VISUALISASI 4: WEEKDAY VS WEEKEND
-# =====================================================
-
-plt.figure(figsize=(10, 6))
-
-plt.bar(
-    ["Weekday", "Weekend"],
-    hari["total_screen_time_hours"],
-    color=["skyblue", "orange"]
-)
-
-plt.title(
-    "Perbandingan Screen Time Weekday dan Weekend",
-    fontsize=14
-)
-
+x = range(len(weekday_weekend))
+plt.figure(figsize=(8, 5))
+plt.bar([i - 0.2 for i in x], weekday_weekend["media_sosial"],
+        width=0.4, label="Media Sosial")
+plt.bar([i + 0.2 for i in x], weekday_weekend["gaming"],
+        width=0.4, label="Gaming")
+plt.xticks(list(x), weekday_weekend["day_type"])
+plt.title("Media Sosial dan Gaming: Weekday vs Weekend")
 plt.xlabel("Jenis Hari")
-plt.ylabel("Rata-rata Screen Time (jam)")
-
-plt.grid(axis="y", linestyle="--", alpha=0.7)
-
-for i, nilai in enumerate(hari["total_screen_time_hours"]):
-    plt.text(
-        i,
-        nilai,
-        f"{nilai:.2f}",
-        ha="center",
-        va="bottom"
-    )
-
+plt.ylabel("Rata-rata Jam/Hari")
+plt.legend()
 plt.tight_layout()
 plt.show()
 
-
 # =====================================================
-# 5. HUBUNGAN SCREEN TIME DENGAN DURASI TIDUR
-# =====================================================
-
-print("\nHUBUNGAN SCREEN TIME DENGAN DURASI TIDUR")
-print("-" * 50)
-
-print(
-    "Korelasi:",
-    round(
-        df["total_screen_time_hours"].corr(
-            df["sleep_duration_hours"]
-        ),
-        2
-    )
-)
-
-
-# =====================================================
-# VISUALISASI 5: SCATTER PLOT
+# GRAFIK 5: SCREEN TIME VS KELELAHAN MATA (SCATTER)
 # =====================================================
 
-plt.figure(figsize=(10, 6))
+query = """
+SELECT total_screen_time_hours, eye_fatigue_level
+FROM screen_time_siswa
+WHERE total_screen_time_hours IS NOT NULL
+  AND eye_fatigue_level IS NOT NULL
+"""
+scatter_df = pd.read_sql(query, conn)
+print("\nJUMLAH DATA SCATTER:", len(scatter_df))
 
-plt.scatter(
-    df["total_screen_time_hours"],
-    df["sleep_duration_hours"],
-    alpha=0.5,
-    color="mediumpurple"
-)
-
-plt.title(
-    "Hubungan Screen Time dengan Durasi Tidur",
-    fontsize=14
-)
-
-plt.xlabel("Total Screen Time (jam)")
-plt.ylabel("Durasi Tidur (jam)")
-
-plt.grid(True, linestyle="--", alpha=0.7)
-
+plt.figure(figsize=(10, 5))
+plt.scatter(scatter_df["total_screen_time_hours"],
+            scatter_df["eye_fatigue_level"], alpha=0.3)
+plt.title("Hubungan Screen Time dengan Kelelahan Mata")
+plt.xlabel("Screen Time (Jam/Hari)")
+plt.ylabel("Tingkat Kelelahan Mata (1-5)")
+plt.yticks([1, 2, 3, 4, 5])
+plt.grid(True)
 plt.tight_layout()
 plt.show()
-
-
-# =====================================================
-# INTERPRETASI HASIL
-# =====================================================
-
-print("\nINTERPRETASI HASIL")
-print("-" * 50)
-
-rata_screen_time = df["total_screen_time_hours"].mean()
-
-print(
-    "Rata-rata Screen Time:",
-    round(rata_screen_time, 2),
-    "jam/hari"
-)
-
-korelasi_terkuat = korelasi.loc[
-    korelasi["Nilai Korelasi"].abs().idxmax()
-]
-
-print(
-    "Variabel dengan hubungan terkuat:",
-    korelasi_terkuat["Variabel"]
-)
-
-selisih_hari = (
-    hari.loc["Weekend", "total_screen_time_hours"]
-    - hari.loc["Weekday", "total_screen_time_hours"]
-)
-
-print(
-    "Selisih Screen Time Weekend dan Weekday:",
-    round(selisih_hari, 2),
-    "jam"
-)
-
-print(
-    "Catatan: Korelasi tidak membuktikan hubungan sebab-akibat."
-)
-
-
-# =====================================================
-# SELESAI
-# =====================================================
-
-print("\n" + "=" * 50)
-print("ANALISIS SCREEN TIME SISWA SELESAI!")
-print("=" * 50)
 
 conn.close()
